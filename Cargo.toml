@@ -1,0 +1,79 @@
+[package]
+name = "rustify"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A modern Rust-based music player with GUI"
+license = "MIT"
+repository = "https://github.com/your-username/rustify"
+homepage = "https://github.com/your-username/rustify"
+documentation = "https://docs.rs/rustify"
+readme = "README.md"
+keywords = ["music", "player", "audio", "gui", "multimedia"]
+categories = ["multimedia::audio", "gui"]
+exclude = [
+    "/.github/*",
+    "/docs/*",
+    "/examples/*",
+    "/tests/*",
+    "*.log",
+    "/target/*"
+]
+
+[dependencies]
+egui = "0.24"
+eframe = { version = "0.24", default-features = false, features = [
+    "accesskit",     # Make egui comptaible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use glow OpenGL backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+] }
+rodio = "0.17"
+rfd = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+anyhow = "1.0"
+walkdir = "2.4"
+dirs = "5.0"
+crossbeam-channel = "0.5"
+env_logger = "0.10"
+serde_json = "1.0"
+log = "0.4"
+
+[profile.release]
+opt-level = 3          # Maximum optimization
+lto = true             # Link-time optimization
+codegen-units = 1      # Better optimization at cost of compile time
+panic = "abort"        # Smaller binary size
+strip = true           # Remove debug symbols
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2
+
+# Fast development builds
+[profile.dev]
+opt-level = 0
+debug = true
+split-debuginfo = "unpacked"
+overflow-checks = true
+
+# Size-optimized release profile
+[profile.release-small]
+inherits = "release"
+opt-level = "z"        # Optimize for size
+lto = "fat"            # Full LTO
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Performance-focused release profile
+[profile.release-fast]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+target-cpu = "native"
+
+[features]
+default = ["native-tls"]
+native-tls = []
