@@ -17,6 +17,7 @@ pub struct MusicPlayer {
     pub song_start_time: Option<Instant>,
     pub current_position: Duration,
     pub dragged_song: Option<(usize, usize)>, // (folder_index, song_index)
+    pub last_advance_check: Option<Instant>,
 }
 
 impl Default for MusicPlayer {
@@ -42,6 +43,7 @@ impl Default for MusicPlayer {
             song_start_time: None,
             current_position: Duration::from_secs(0),
             dragged_song: None,
+            last_advance_check: None,
         }
     }
 }
@@ -163,6 +165,7 @@ impl MusicPlayer {
                 self.is_playing = true;
                 self.song_start_time = Some(Instant::now());
                 self.current_position = Duration::from_secs(0);
+                self.last_advance_check = None;
             }
         }
     }
@@ -181,7 +184,13 @@ impl MusicPlayer {
                     // Reached end of playlist - stop playing
                     self.stop();
                 }
+            } else {
+                // Invalid folder index, stop playback
+                self.stop();
             }
+        } else {
+            // No current song to advance from
+            self.stop();
         }
     }
 
@@ -224,6 +233,7 @@ impl MusicPlayer {
         self.current_song = None;
         self.current_folder_index = None;
         self.current_song_index = None;
+        self.last_advance_check = None;
     }
 
     pub fn update_position(&mut self) {
@@ -231,9 +241,39 @@ impl MusicPlayer {
             let elapsed = self.song_start_time.unwrap().elapsed();
             self.current_position = elapsed;
 
-            // Check if song finished and auto-play next within the same playlist
-            if self.sink.empty() && self.current_song.is_some() {
-                self.play_next_song();
+            // Check if song finished using duration-based detection or sink state
+            if let Some(song) = &self.current_song {
+                let now = Instant::now();
+
+                // Only check for advance every 500ms to avoid rapid firing
+                let should_check = self
+                    .last_advance_check
+                    .map(|last| now.duration_since(last) >= Duration::from_millis(500))
+                    .unwrap_or(true);
+
+                if should_check {
+                    self.last_advance_check = Some(now);
+
+                    let song_finished = if let Some(duration) = song.duration {
+                        // Use duration-based detection with a 1 second buffer for safety
+                        elapsed >= duration.saturating_sub(Duration::from_millis(1000))
+                    } else {
+                        // For songs without duration, use multiple fallback methods
+                        let sink_empty = self.sink.empty();
+                        let sink_len = self.sink.len();
+
+                        // Song finished if sink is empty and we've been playing for at least 1 second
+                        // Also check if sink length is 0 (no more audio data)
+                        (sink_empty && elapsed > Duration::from_secs(1)) || sink_len == 0
+                    };
+
+                    // Additional check: if sink reports as stopped but we think we're playing
+                    let sink_stopped = self.sink.empty() && elapsed > Duration::from_secs(2);
+
+                    if song_finished || sink_stopped {
+                        self.play_next_song();
+                    }
+                }
             }
         }
     }
