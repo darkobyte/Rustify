@@ -35,9 +35,8 @@ anyhow = "1.0"
 walkdir = "2.4"
 dirs = "5.0"
 crossbeam-channel = "0.5"
-env_logger = "0.10"
+
 serde_json = "1.0"
-log = "0.4"
 
 [profile.release]
 opt-level = 3          # Maximum optimization
@@ -49,31 +48,3 @@ strip = true           # Remove debug symbols
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
 opt-level = 2
-
-# Fast development builds
-[profile.dev]
-opt-level = 0
-debug = true
-split-debuginfo = "unpacked"
-overflow-checks = true
-
-# Size-optimized release profile
-[profile.release-small]
-inherits = "release"
-opt-level = "z"        # Optimize for size
-lto = "fat"            # Full LTO
-codegen-units = 1
-panic = "abort"
-strip = true
-
-# Performance-focused release profile
-[profile.release-fast]
-inherits = "release"
-opt-level = 3
-lto = "fat"
-codegen-units = 1
-target-cpu = "native"
-
-[features]
-default = ["native-tls"]
-native-tls = []

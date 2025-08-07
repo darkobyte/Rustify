@@ -1,18 +1,14 @@
 use eframe::egui;
 
 mod audio;
-mod error;
 mod library;
 mod settings;
-mod ui;
 
 use audio::AudioPlayer;
 use library::MusicLibrary;
 use settings::Settings;
 
 fn main() -> Result<(), eframe::Error> {
-    env_logger::init();
-
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
@@ -25,17 +21,10 @@ fn main() -> Result<(), eframe::Error> {
         "Rustify - Music Player",
         options,
         Box::new(|cc| {
-            // Apply custom theme
-            setup_custom_fonts(cc);
             apply_custom_theme(&cc.egui_ctx);
             Box::new(RustifyApp::new(cc))
         }),
     )
-}
-
-fn setup_custom_fonts(_cc: &eframe::CreationContext<'_>) {
-    // Custom font loading disabled for now
-    // Would require actual font files in assets/fonts/
 }
 
 fn apply_custom_theme(ctx: &egui::Context) {
@@ -57,8 +46,6 @@ fn apply_custom_theme(ctx: &egui::Context) {
     visuals.selection.bg_fill = egui::Color32::from_rgb(80, 120, 255);
     visuals.hyperlink_color = egui::Color32::from_rgb(100, 150, 255);
 
-    // Text colors are handled automatically by egui theme
-
     ctx.set_visuals(visuals);
 }
 
@@ -78,10 +65,6 @@ struct RustifyApp {
     scan_status: ScanStatus,
 
     // Playback state
-    is_playing: bool,
-    current_time: f64,
-    total_time: f64,
-    is_shuffled: bool,
     repeat_mode: RepeatMode,
 }
 
@@ -89,7 +72,7 @@ struct RustifyApp {
 enum ScanStatus {
     Idle,
     Scanning,
-    Complete(usize), // number of tracks found
+    Complete(usize),
     Error(String),
 }
 
@@ -129,22 +112,15 @@ impl RustifyApp {
             selected_track: None,
             show_settings: false,
             search_query: String::new(),
-            is_playing: false,
-            current_time: 0.0,
-            total_time: 0.0,
-            is_shuffled: false,
             repeat_mode: RepeatMode::None,
             settings,
         }
     }
 
-    fn update_playback_state(&mut self) {
-        self.is_playing = self.audio_player.is_playing();
-        self.current_time = self.audio_player.current_time();
-        self.total_time = self.audio_player.total_time();
-
-        // Auto-advance to next track if current track finished
-        if !self.is_playing && self.total_time > 0.0 && self.current_time >= self.total_time {
+    fn check_auto_advance(&mut self) {
+        // Check if current track finished and auto-advance
+        if self.audio_player.is_finished() && self.selected_track.is_some() {
+            println!("Track finished, auto-advancing");
             self.play_next_track();
         }
     }
@@ -153,8 +129,9 @@ impl RustifyApp {
         if let Some(track_idx) = self.selected_track {
             let tracks = self.music_library.get_filtered_tracks(&self.search_query);
             if let Some(track) = tracks.get(track_idx) {
+                println!("Playing track: {} - {}", track.artist, track.title);
                 if let Err(e) = self.audio_player.play_file(&track.path) {
-                    log::error!("Error playing file: {}", e);
+                    eprintln!("Error playing file: {}", e);
                     self.scan_status = ScanStatus::Error(format!("Playback error: {}", e));
                 }
             }
@@ -166,7 +143,11 @@ impl RustifyApp {
             let tracks = self.music_library.get_filtered_tracks(&self.search_query);
 
             let next_idx = match self.repeat_mode {
-                RepeatMode::Track => current, // Repeat current track
+                RepeatMode::Track => {
+                    // Repeat current track
+                    self.play_selected_track();
+                    return;
+                }
                 RepeatMode::All => {
                     if current + 1 >= tracks.len() {
                         0 // Loop back to first track
@@ -193,8 +174,8 @@ impl RustifyApp {
             let tracks = self.music_library.get_filtered_tracks(&self.search_query);
 
             let prev_idx = if current == 0 {
-                if self.repeat_mode == RepeatMode::All {
-                    tracks.len().saturating_sub(1)
+                if self.repeat_mode == RepeatMode::All && !tracks.is_empty() {
+                    tracks.len() - 1
                 } else {
                     0
                 }
@@ -213,18 +194,29 @@ impl RustifyApp {
         let seconds = total_seconds % 60;
         format!("{:02}:{:02}", minutes, seconds)
     }
+
+    fn format_percentage(progress: f32) -> String {
+        format!("{:.0}%", progress * 100.0)
+    }
 }
 
 impl eframe::App for RustifyApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         self.settings.audio.volume = self.volume;
         if let Err(e) = self.settings.save_to_storage(storage) {
-            log::error!("Failed to save settings: {}", e);
+            eprintln!("Failed to save settings: {}", e);
         }
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.update_playback_state();
+        // Check for auto-advance first
+        self.check_auto_advance();
+
+        // Update scan status
+        if matches!(self.scan_status, ScanStatus::Scanning) && !self.music_library.is_scanning() {
+            let count = self.music_library.track_count();
+            self.scan_status = ScanStatus::Complete(count);
+        }
 
         // Request repaint for smooth UI updates
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -263,7 +255,11 @@ impl RustifyApp {
 
                 ui.menu_button("Playback", |ui| {
                     if ui.button("⏯️ Play/Pause").clicked() {
-                        self.audio_player.toggle_playback();
+                        if self.audio_player.has_file_loaded() {
+                            self.audio_player.toggle_playback();
+                        } else if self.selected_track.is_some() {
+                            self.play_selected_track();
+                        }
                     }
                     if ui.button("⏹️ Stop").clicked() {
                         self.audio_player.stop();
@@ -275,9 +271,6 @@ impl RustifyApp {
                         self.play_next_track();
                     }
                     ui.separator();
-                    if ui.checkbox(&mut self.is_shuffled, "🔀 Shuffle").changed() {
-                        // TODO: Implement shuffle logic
-                    }
 
                     ui.horizontal(|ui| {
                         ui.label("🔁 Repeat:");
@@ -309,33 +302,35 @@ impl RustifyApp {
     fn render_control_panel(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("control_panel").show(ctx, |ui| {
             ui.vertical(|ui| {
-                // Progress bar
-                let progress = if self.total_time > 0.0 {
-                    (self.current_time / self.total_time) as f32
-                } else {
-                    0.0
-                };
+                // Progress bar with percentage and time
+                let progress = self.audio_player.get_progress();
+                let current_time = self.audio_player.current_time();
+                let total_time = self.audio_player.total_time();
 
                 let response = ui.add(
                     egui::ProgressBar::new(progress)
-                        .show_percentage()
-                        .animate(self.is_playing),
+                        .text(Self::format_percentage(progress))
+                        .animate(self.audio_player.is_playing()),
                 );
 
                 if response.clicked() {
                     if let Some(click_pos) = response.interact_pointer_pos() {
                         let bar_rect = response.rect;
                         let relative_pos = (click_pos.x - bar_rect.left()) / bar_rect.width();
-                        let seek_time = relative_pos as f64 * self.total_time;
+                        let seek_time = relative_pos as f64 * total_time;
                         self.audio_player.seek(seek_time);
                     }
                 }
 
                 // Time display
                 ui.horizontal(|ui| {
-                    ui.label(Self::format_time(self.current_time));
+                    ui.label(Self::format_time(current_time));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(Self::format_time(self.total_time));
+                        if total_time > 0.0 {
+                            ui.label(Self::format_time(total_time));
+                        } else {
+                            ui.label("--:--");
+                        }
                     });
                 });
 
@@ -347,9 +342,17 @@ impl RustifyApp {
                     }
 
                     // Play/Pause
-                    let play_button_text = if self.is_playing { "⏸️" } else { "▶️" };
+                    let play_button_text = if self.audio_player.is_playing() {
+                        "⏸️"
+                    } else {
+                        "▶️"
+                    };
                     if ui.button(play_button_text).clicked() {
-                        self.audio_player.toggle_playback();
+                        if self.audio_player.has_file_loaded() {
+                            self.audio_player.toggle_playback();
+                        } else if self.selected_track.is_some() {
+                            self.play_selected_track();
+                        }
                     }
 
                     // Stop
@@ -442,22 +445,11 @@ impl RustifyApp {
             }
         }
 
-        // Update scan status
-        if matches!(self.scan_status, ScanStatus::Scanning) && !self.music_library.is_scanning() {
-            let count = self.music_library.track_count();
-            self.scan_status = ScanStatus::Complete(count);
-        }
-
         ui.separator();
 
         // Playback controls
         ui.heading("🎛️ Controls");
         ui.separator();
-
-        ui.horizontal(|ui| {
-            ui.label("🔀");
-            ui.checkbox(&mut self.is_shuffled, "Shuffle");
-        });
 
         ui.horizontal(|ui| {
             ui.label("🔁");
@@ -499,7 +491,7 @@ impl RustifyApp {
 
             for (idx, track) in tracks.iter().enumerate() {
                 let is_selected = self.selected_track == Some(idx);
-                let is_current = is_selected && self.is_playing;
+                let is_current = is_selected && self.audio_player.is_playing();
 
                 let response = ui
                     .horizontal(|ui| {
@@ -576,7 +568,7 @@ impl RustifyApp {
 
                 if ui.button("💾 Save Settings").clicked() {
                     if let Err(e) = self.settings.save() {
-                        log::error!("Failed to save settings: {}", e);
+                        eprintln!("Failed to save settings: {}", e);
                     }
                 }
             });

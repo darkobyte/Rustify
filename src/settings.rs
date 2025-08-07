@@ -132,22 +132,6 @@ impl Default for PlaybackSettings {
 }
 
 impl Settings {
-    pub fn load() -> Self {
-        if let Some(config_dir) = dirs::config_dir() {
-            let config_path = config_dir.join("rustify").join("settings.json");
-
-            if config_path.exists() {
-                if let Ok(content) = std::fs::read_to_string(&config_path) {
-                    if let Ok(settings) = serde_json::from_str(&content) {
-                        return settings;
-                    }
-                }
-            }
-        }
-
-        Self::default()
-    }
-
     pub fn load_from_storage(
         storage: &dyn eframe::Storage,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -177,42 +161,6 @@ impl Settings {
     ) -> Result<(), Box<dyn std::error::Error>> {
         eframe::set_value(storage, eframe::APP_KEY, self);
         Ok(())
-    }
-
-    pub fn reset_to_defaults(&mut self) {
-        *self = Self::default();
-    }
-
-    #[allow(dead_code)]
-    pub fn add_music_directory(&mut self, path: PathBuf) {
-        if !self.library.music_directories.contains(&path) {
-            self.library.music_directories.push(path);
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn remove_music_directory(&mut self, path: &PathBuf) {
-        self.library.music_directories.retain(|p| p != path);
-    }
-
-    #[allow(dead_code)]
-    pub fn is_format_supported(&self, format: &str) -> bool {
-        self.library
-            .supported_formats
-            .iter()
-            .any(|f| f.eq_ignore_ascii_case(format))
-    }
-
-    #[allow(dead_code)]
-    pub fn apply_theme(&self, ctx: &egui::Context) {
-        match self.ui.theme {
-            Theme::Light => ctx.set_visuals(egui::Visuals::light()),
-            Theme::Dark => ctx.set_visuals(egui::Visuals::dark()),
-            Theme::Auto => {
-                // Could implement system theme detection here
-                ctx.set_visuals(egui::Visuals::dark())
-            }
-        }
     }
 }
 
