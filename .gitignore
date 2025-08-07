@@ -1,5 +1,70 @@
 # Rust
+# Rust build artifacts
 /target/
+debug/
+release/
+
+# Cargo lock file (include for applications, exclude for libraries)
+# Cargo.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Screenshots (if you want to exclude them)
+# screenshots/
+
+# Configuration files that might contain sensitive data
+config.toml
+settings.json
+
+# Runtime files
+*.pid
+*.sock
+
+# Test artifacts
+test-results/
+coverage/
+
+# Documentation build
+book/
+docs/_build/
+
+# Backup files
+*~
+*.orig
+*.rej
+
+# Local environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 Cargo.lock
 
 # IDE and Editor files
