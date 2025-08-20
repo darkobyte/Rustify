@@ -1,12 +1,23 @@
 use crate::player::MusicPlayer;
-use crate::ui::{SongList, SpotifyTheme};
+use crate::ui::{SearchBar, SongList, SpotifyTheme};
 use eframe::egui;
 
-pub struct SpotifyLayout;
+pub struct SpotifyLayout {
+    search_bar: SearchBar,
+}
+
+impl Default for SpotifyLayout {
+    fn default() -> Self {
+        Self {
+            search_bar: SearchBar::default(),
+        }
+    }
+}
 
 impl SpotifyLayout {
     /// Show the main Spotify-like layout with three panels
     pub fn show(
+        &mut self,
         player: &mut MusicPlayer,
         ctx: &egui::Context,
         ui: &mut egui::Ui,
@@ -55,6 +66,10 @@ impl SpotifyLayout {
                         });
                         
                         ui.separator();
+
+                        // Search bar
+                        let _search_results = self.search_bar.show(ui, player);
+                        ui.add_space(8.0);
 
                         // Music content
                         let (ft, stp, ds, scd, msa) = Self::show_main_content(player, ui, ctx);

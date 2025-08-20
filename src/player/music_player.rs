@@ -18,6 +18,7 @@ pub struct MusicPlayer {
     pub current_position: Duration,
     pub dragged_song: Option<(usize, usize)>, // (folder_index, song_index)
     pub last_advance_check: Option<Instant>,
+    pub volume: f32, // Volume level (0.0 to 1.0)
 }
 
 impl Default for MusicPlayer {
@@ -30,6 +31,7 @@ impl Default for MusicPlayer {
 
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&stream_handle).unwrap();
+        sink.set_volume(0.7); // Set initial volume
 
         Self {
             folders,
@@ -44,6 +46,7 @@ impl Default for MusicPlayer {
             current_position: Duration::from_secs(0),
             dragged_song: None,
             last_advance_check: None,
+            volume: 0.7, // Default volume at 70%
         }
     }
 }
@@ -155,6 +158,7 @@ impl MusicPlayer {
         // Create new sink
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
         self.sink = Sink::try_new(&stream_handle).unwrap();
+        self.sink.set_volume(self.volume); // Apply current volume setting
         self._stream = _stream;
         self._stream_handle = stream_handle;
 
@@ -296,5 +300,14 @@ impl MusicPlayer {
         self.current_folder_index == Some(folder_index)
             && self.current_song_index == Some(song_index)
             && self.is_playing
+    }
+
+    pub fn set_volume(&mut self, volume: f32) {
+        self.volume = volume.clamp(0.0, 1.0);
+        self.sink.set_volume(self.volume);
+    }
+
+    pub fn get_volume(&self) -> f32 {
+        self.volume
     }
 }

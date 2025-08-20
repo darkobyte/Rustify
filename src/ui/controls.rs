@@ -171,9 +171,12 @@ impl Controls {
     /// Show additional controls (volume, etc.)
     fn show_additional_controls(player: &mut MusicPlayer, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            // Volume control (placeholder)
+            // Volume control
             ui.label("🔊");
-            ui.add(egui::Slider::new(&mut 0.7f32, 0.0..=1.0).show_value(false));
+            let mut volume = player.get_volume();
+            if ui.add(egui::Slider::new(&mut volume, 0.0..=1.0).show_value(false)).changed() {
+                player.set_volume(volume);
+            }
 
             ui.add_space(16.0);
 

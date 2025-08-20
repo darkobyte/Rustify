@@ -10,8 +10,9 @@ use eframe::egui;
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([500.0, 700.0])
-            .with_title("Rustify Music Player"),
+            .with_inner_size([1000.0, 700.0])  // Larger window for better layout
+            .with_min_inner_size([800.0, 600.0])  // Minimum size for usability
+            .with_title("Rustify Music Player - Spotify Style"),
         ..Default::default()
     };
 
