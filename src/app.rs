@@ -1,5 +1,5 @@
 use crate::player::MusicPlayer;
-use crate::ui::{Controls, SongList};
+use crate::ui::{Controls, SpotifyLayout, SpotifyTheme};
 use eframe::egui;
 use std::time::Duration;
 
@@ -17,17 +17,16 @@ impl Default for RustifyApp {
 
 impl eframe::App for RustifyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Apply Spotify theme
+        SpotifyTheme::apply_to_context(ctx);
+        
         // Update player position and handle auto-play
         self.player.update_position();
 
-        // Main content area
+        // Main layout with three panels
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("🎵 Rustify Music Player");
-            ui.separator();
-
-            // Song list with folders
             let (folder_to_toggle, song_to_play, drag_started, should_clear_drag, move_song_action) =
-                SongList::show(&mut self.player, ui, ctx);
+                SpotifyLayout::show(&mut self.player, ctx, ui);
 
             // Apply collected interactions
             if let Some(folder_idx) = folder_to_toggle {
@@ -51,10 +50,13 @@ impl eframe::App for RustifyApp {
             }
         });
 
-        // Bottom panel for controls
-        egui::TopBottomPanel::bottom("controls").show(ctx, |ui| {
-            Controls::show(&mut self.player, ui);
-        });
+        // Bottom panel for modern player controls
+        egui::TopBottomPanel::bottom("player_controls")
+            .resizable(false)
+            .exact_height(100.0)
+            .show(ctx, |ui| {
+                Controls::show(&mut self.player, ui);
+            });
 
         // Request repaint for smooth updates
         ctx.request_repaint_after(Duration::from_millis(100));
